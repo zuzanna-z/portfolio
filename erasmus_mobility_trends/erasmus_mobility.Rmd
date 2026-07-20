@@ -1,0 +1,285 @@
+---
+title: "Participant rate analysis"
+output: html_document
+date: "2026-04-26"
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE, warning = FALSE, message = FALSE)
+library(rmdformats)
+
+## Global options
+options(max.print="75")
+# opts_chunk$set(echo=TRUE,
+#                cache=TRUE,
+#                prompt=FALSE,
+#                tidy=TRUE,
+#                comment=NA,
+#                message=FALSE,
+#                warning=FALSE)
+# opts_knit$set(width=75)
+```
+
+```{r}
+library(dplyr)
+library(tidyverse)
+library(readr)
+library(lme4)
+library(ggplot2)
+library(stringr)
+library(MuMIn)
+library(sf)
+library(tmap)
+library(spdep)
+library(mapview)
+library(purrr)
+library(cartogram)
+library(spatialreg)
+
+```
+
+```{r}
+data <- read_rds("your path to K2 mobility data")
+data <- data[,-c(1)]
+
+data <- data %>%
+  rename(
+    sending_city  = `Sending City`,
+    receiving_city = `Receiving City`,
+    sending_country  = `Sending Country`,
+    receiving_country = `Receiving Country`
+  )
+
+# Extract ISO-2 codes from labels
+data <- data %>%
+  mutate(
+    send_code = str_extract(sending_country,   "^[A-Z]{2}"),
+    recv_code = str_extract(receiving_country, "^[A-Z]{2}")
+  )
+
+# Define European analysis universe (programme + key partner countries)
+europe_codes <- c(
+  "AL","AT","BE","BG","CH","CY","CZ","DE","DK","EE","ES","FI",
+  "FR","GR","HR","HU","IE","IS","IT","LI","LT","LU","LV","MT",
+  "NL","NO","PL","PT","RO","SE","SI","SK","TR","UK","ME","MK",
+  "RS","UA","MD","XK"
+)
+
+# Keep only flows where both sending and receiving countries are European
+data <- data %>%
+  filter(
+    send_code %in% europe_codes,
+    recv_code %in% europe_codes,
+    send_code != recv_code
+  )
+```
+
+
+```{r}
+gdp_data <- read.csv("your path to GDP data")
+
+# Extract the GDP data for years 2014-2022
+gdp_data <- gdp_data[gdp_data$TIME_PERIOD>=2014 & gdp_data$TIME_PERIOD<=2022,]
+
+# Keep only the Euro value
+gdp_data <- gdp_data%>%
+  filter(
+    na_item == 'B1GQ',
+    unit == 'CP_MEUR'
+  )
+gdp_data <- gdp_data[,-c(1, 2, 3, 4, 5,9, 10)]
+
+# Rename columns
+ gdp_data <- gdp_data%>%
+   rename('country' = 'geo',
+          'year' = 'TIME_PERIOD',
+          'gdp_value' = 'OBS_VALUE')
+```
+
+
+```{r}
+# Although the file is saved as tsv the data inside the rows is formatted as CSV meaning that extra transformation is required to extreact the data
+pop_data <- read_tsv("your path to population data")
+
+# Read in the country names
+names(pop_data)[1] <- c('country')
+
+# split the file into CSV
+pop_data <- pop_data %>%
+  filter(str_detect(country,"A,NR,TOTAL,T"))
+pop_data$country <- str_remove(pop_data$country,"A,NR,TOTAL,T,")
+
+pop_data <- pop_data[, c(1, 56:64)]
+
+# transform into usable datset
+pop_data <- pop_data%>%
+  pivot_longer(
+    cols = '2014':'2022',
+    names_to = "year",
+    values_to = "population"
+  )
+
+pop_data$year <- as.numeric(pop_data$year)
+
+```
+```{r}
+# combine the GDP dataset and the Population dataset by country and year
+ add_df <- pop_data%>%
+   inner_join(gdp_data, by=c('country', 'year'))
+
+# correct value format
+add_df$gdp_value <- gsub("[^0-9.,]", "", add_df$gdp_value)
+add_df$population <- gsub("[^0-9.,]", "",add_df$population)
+add_df$gdp_value <- as.numeric(add_df$gdp_value)
+add_df$population <- as.numeric(add_df$population)
+
+# correct NA with data from Wikipedia
+add_df$population[385:386] <- c(1793000, 1745000)
+
+# calculate normalised GDP value
+add_df$norm_gdp_val <- round((add_df$gdp_value/add_df$population)*100,2)
+
+# rename columns
+names(add_df)<- c("send_code", "year", "population_rec", "gdp_value_rec", "norm_gdp_val_rec")
+```
+ 
+
+```{r}
+# join the three data sets
+df <- data%>%
+inner_join(add_df, by=c('year', 'send_code'))
+
+# aggregate the data frame for participation
+df_country <- df%>%
+  count(send_code, year, na.rm = TRUE)
+df_info <- df[,c(5,6,8,9,10)]
+df_info <- unique(df_info)
+
+df_country <- df_country%>%
+  inner_join(df_info, by=c('year', 'send_code'))
+
+# rename the iso code column
+names(df_country)[1] <- c("CNTR_ID")
+
+# calculate the participation rate
+df_country$participation_rate <- ((df_country$n/df_country$population)*100)
+
+```
+
+
+```{r}
+# add border polygons
+polygon_data <- st_read("your path to the polygon border data")
+df_country$CNTR_ID <- str_split_fixed(df_country$CNTR_ID, " ", 2)[,1]
+
+geo_data <- polygon_data %>% 
+  inner_join(df_country, by=c("CNTR_ID"))
+```
+
+
+```{r}
+# plotting the raw participation rate for EU countries between the years 2019-2022
+geo_data[geo_data$year %in% c("2019","2020","2021","2022"), ] %>%
+  tm_shape() +
+  tm_facets(by = "year") +
+  tm_polygons(
+    fill = "participation_rate",
+    palette = c("#F67451", "#E6D460", "#00E078", "#73E7D8"),
+    title = "Participation frequency"
+  ) +
+  tm_layout(
+    legend.outside = TRUE,
+    legend.outside.position = "bottom"
+  ) +
+  tm_tiles()
+
+# Plotting proportional participation map
+df_carto_all <- geo_data %>%
+  split(.$year) %>%
+  map(~ cartogram_cont(.x, weight = "participation_rate", itermax = 5)) %>%
+  bind_rows()
+
+ggplot(df_carto_all) +
+  geom_sf(aes(fill = participation_rate)) +
+  facet_wrap(~ year) +
+  scale_fill_gradientn(
+    colours = c("#064789", "#8CD790", "#FCFDBF", "#FE9F6D", "#DE4968"),
+    values = scales::rescale(c(0, 0.25, 0.5, 0.75, 1))
+  ) +
+  labs(title="Proportional share of participation in Erasmus+", fill="share of participants")+
+  theme_minimal()
+```
+
+
+```{r}
+# Calculating the queen contiguity neighbourhoods
+nb <- poly2nb(geo_data, queen = TRUE)
+country_nb <- st_coordinates(st_centroid(geo_data$geom))
+
+lw <- nb2listw(nb, style = "W", zero.policy = TRUE)
+
+# Moran test for GDP and participation rate with Monte-Carlo simulation
+moran.mc(geo_data$participation_rate, 
+           lw,
+           nsim = 999,
+           zero.policy = TRUE)
+moran.mc(geo_data$norm_gdp_val_rec, 
+           lw,
+           nsim = 999,
+           zero.policy = TRUE)
+```
+
+```{r}
+# Calculating univ LISA clusters for participation rate and the bv LISA clusters for participation and GDP
+lisa_participation <- localmoran(geo_data$participation_rate,lw,
+            na.action=na.fail,
+        conditional=TRUE, alternative = "two.sided", mlvar=TRUE,
+        spChk=NULL, adjust.x=FALSE, zero.policy=attr(lw, "zero.policy"))
+
+bv_lisa_participation_GDP <- localmoran_bv(geo_data$participation_rate, geo_data$norm_gdp_val_rec,
+           lw,nsim = 499, scale = TRUE, alternative="two.sided",
+ iseed=1L, no_repeat_in_row=FALSE, zero.policy=attr(lw, "zero.policy"))
+```
+
+
+```{r}
+# Plotting univ LISA clusters for participation rate and the bv LISA clusters for participation and GDP
+geo_data$lisa_uni_cluster <- attr(lisa_participation, "quadr")[,'pysal']
+geo_data$lisa_bv_cluster <- attr(bv_lisa_participation_GDP, "quadr")[,'pysal']
+
+# univ LISA
+tm_shape(geo_data)+
+  tm_polygons("lisa_uni_cluster",
+              palette = c("#064789", "#8CD790", "#FE9F6D", "#DE4968"),
+              title = "LISA Clusters") +
+  tm_layout(frame = FALSE)
+# bv LISA
+tm_shape(geo_data)+
+  tm_polygons("lisa_bv_cluster",
+              palette = c("#064789", "#8CD790", "#FE9F6D", "#DE4968"),
+              title = "LISA Clusters") +
+  tm_layout(frame = FALSE)
+```
+
+```{r}
+# applying the SLX model to the data
+GDP_participation_model01 <- lmSLX(participation_rate ~ norm_gdp_val_rec + year, data = geo_data, listw = lw)
+summary(GDP_participation_model01)
+```
+
+```{r}
+# applying the SEM model to the data
+GDP_participation_model02 <- errorsarlm(participation_rate ~ norm_gdp_val_rec + year, data = geo_data, listw = lw)
+summary(GDP_participation_model02)
+```
+
+
+
+
+
+
+
+
+
+
+
