@@ -45,7 +45,8 @@ The initiatives of the regional official institutions and the political realitie
 Overall the results of this analysis point to interesting regional dependencies which might be more predictive of the success for Erasmus+.
 
 
-## Refernces
+## References
+
 European Commission, & Eurostat. (2026a). GISCO [Dataset]. https://ec.europa.eu/eurostat/web/gisco 
 
 European Commission, & Eurostat. (2026b). Gross domestic product (GDP) and main components (output, expenditure and income)—Annual data. [Dataset]. http://data.europa.eu/88u/dataset/v5x9gcgmhdn8we8ykg6ylw 
