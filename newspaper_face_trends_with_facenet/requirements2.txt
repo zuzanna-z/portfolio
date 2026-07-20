@@ -1,0 +1,8 @@
+numpy
+pandas
+tensorflow
+facenet_pytorch
+torch 
+opencv_python
+matplotlib
+
