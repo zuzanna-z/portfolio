@@ -1,0 +1,30 @@
+{
+  "name": "api_elective_exam",
+  "version": "1.0.0",
+  "description": "the exam project for Web Api Developement elective",
+  "main": "index.js",
+  "scripts": {
+    "test": "echo \"Error: no test specified\" && exit 1"
+  },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/zuzanna-z/portfolio/to_do_web_app"
+  },
+  "author": "Simona Kocisova, Ida Rishoj Jensen, Zuzanna Zyla",
+  "license": "ISC",
+  "bugs": {
+    "url": "https://github.com/zuzanna-z/portfolio/to_do_web_app/issues"
+  },
+  "homepage": "https://github.com/zuzanna-z/portfolio/to_do_web_app#readme",
+  "dependencies": {
+    "bcrypt": "^5.0.1",
+    "bcryptjs": "^2.4.3",
+    "config": "^3.3.7",
+    "cors": "^2.8.5",
+    "dotenv": "^16.0.2",
+    "express": "^4.18.1",
+    "joi": "^17.6.0",
+    "lodash": "^4.17.21",
+    "mssql": "^9.0.1"
+  }
+}
