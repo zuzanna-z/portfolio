@@ -93,7 +93,7 @@ The API uses dedicated routes and data models to handle CRUD operations, with al
 * Data validation and error handling
 * Persistent data management
 
-[View project →](./todo_list_API)
+[View project →](./to_do_web_app)
 
 ---
 
