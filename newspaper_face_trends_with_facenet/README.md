@@ -91,7 +91,7 @@ python src/main.py
 ## Results 
 As can be seen in the image below the number of faces detected in the pages rises for all three newspapers, with the L'Impartial portraying the most human faces out of all the journals used.
 
-![image](newspaper_face_trends_with_facenet/out/fig/face_count_change_across_years_for_all_journals_demo_.jpg)
+![image](/out/fig/face_count_change_across_years_for_all_journals_demo_.jpg)
 
 However, there is a large variation in the trend as the percentage of the pages containing faces across decades keeps dropping and rising again. There was a particularly sharp rise in the late 1900s as compared to other decades, as well as a visible drop around the 1940s and 1970s. 
 
